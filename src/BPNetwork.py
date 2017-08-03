@@ -3,7 +3,9 @@
 
 __metclass__ = type
 
-import time, progressbar, pandas, urllib, re
+import time, progressbar, urllib, re
+import pandas as pd
+import numpy as np
 import datetime
 from sqlalchemy import create_engine, MetaData, text
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -116,26 +118,68 @@ class C_Sub_BuildUpNetwork(C_BPNetwork):
     def __init__(self):
         C_BPNetwork.__init__(self)
 
-    def Build_Network_Main(self, layers=None, Inode=None, H1node=None, H2node=None, Onode=None):
+    def build_network_main(self, layers=None, inode=None, h1node=None, h2node=None, onode=None, batch_mode=True, momentum=False):
         '''
         This is the main function to build up a Back Propagation Network
         :param layers: layer numbers of the network
-        :param Inode: Number of input nodes
-        :param H1node: Number of Hidden Layer 1 nodes
-        :param H2node: Number of Hidden Layer 2 nodes
-        :param Onode: Numbers of Output Layer nodes
+        :param inode: Number of input nodes
+        :param h1node: Number of Hidden Layer 1 nodes
+        :param h2node: Number of Hidden Layer 2 nodes
+        :param onode: Numbers of Output Layer nodes
         :return:
         '''
         if layers is None:
             layers = 3
-        if Inode is None:
-            Inode = 8
-        if H1node is None:
-            H1node = 5
-        if H2node is None:
-            H2node = 0
-        if Onode is None:
-            Onode = 4
+        elif layers != 3 and layers != 4:
+            print "System can only  build 3 or 4 layers network."
+            return
+
+        if inode is None:
+            inode = 8
+        if h1node is None:
+            h1node = 5
+        if h2node is None:
+            h2node = 0
+        if onode is None:
+            onode = 4
+
+        network = {
+            'layer':4,
+            'inode':inode,
+            'h1node':h1node,
+            'h2node':h2node,
+            'onode':onode,
+            'H1ParameterNumbers':0,
+            'H1theta':[], #Hidden Layer 1 Parameters
+            'H2ParameterNumbers':0,
+            'H2theta':[], #Hidden Layer 2 Parameters
+            'OParameterNumbers':0,
+            'Otheta':[], # Output layer Parameters
+            'BatchMode':batch_mode, # Switch of Batch Mode
+            'BCost':0.0, #batch Cost for whole Training Set
+            'SCost':0.0, #Single Cost for each Training sample
+            'CT':0.0, #Cost Threshold, the traget level of cost
+            'CRound':0, #Current Training Rounds
+            'MRound':0, #Max Training Rounds
+            'lambada':0.0, #Learning Rate
+            'epsilon':0.0, # Step length of Calculating the Derivative of parameter theta
+            'MomentumMode':momentum, # Switch of Momentum Model
+            'alpha': 0.0,  # momentum Factor
+        }
+        # Initialize the Parameters for each node.
+        # The first columns of each set of parameter are 1 corresponding to the Bias.
+        self._initialize_parameters(network)
+        # Initialize the variation length of Theta, normally use 2epsilon to calculate the two sides derivative.
+        network['epsilon'] = 0.012
+        # Set the allowed Max Rounds of Training:
+        network['MRound'] = 3000
+        # Initialize the learning Rate
+        network['lambada'] = 3
+        # Setting up Momentum factor alpha:
+        if network['MomentumMode']:
+            network['alpha'] = 0.3
+
+
 
     def _Build_Input_Layer(self, Inode):
         pass
@@ -146,8 +190,31 @@ class C_Sub_BuildUpNetwork(C_BPNetwork):
     def _Build_Output_Layer(self, Onode):
         pass
 
-    def _Initialize_Coefs(self, network):
-        pass
+    def _initialize_parameters(self, network):
+        '''
+        This fucntion is to initialize origin prameters for the network.
+        The parameters are randoms selected number between 0 and 1.
+        The parameters should be small enough
+        :param network:
+        :return:
+        '''
+        #H1theta = pd.DataFrame(np.random.random_sample((network['H1node'], network['Inode'])))
+        H1theta = np.random.random_sample((network['H1node'],network['Inode']+1))/10
+        H1theta[:, 0]=1
+        network['H1theta']=H1theta
+        if network['H2node'] != 0:
+            H2theta = np.random.random_sample((network['H2node'], network['H1node'] + 1)) / 10
+            H2theta[:, 0] = 1
+            network['H2theta'] = H2theta
+            Otheta = np.random.random_sample((network['Onode'], network['H2node'] + 1)) / 10
+            Otheta[:, 0] = 1
+            network['Otheta'] = Otheta
+        else:
+            Otheta = np.random.random_sample((network['Onode'], network['H1node'] + 1)) / 10
+            Otheta[:, 0] = 1
+            network['Otheta'] = Otheta
+
+
 
     def _Cal_Node_Output(self):
         pass
@@ -193,8 +260,8 @@ class C_Sub_NetworkPrediction(C_BPNetwork):
 
 
 def main():
-    pass
-
+    network = C_Sub_BuildUpNetwork()
+    network.build_network_main(layers=4, h1node=8, h2node=10, onode= 6)
 
 if __name__ == '__main__':
     main()
