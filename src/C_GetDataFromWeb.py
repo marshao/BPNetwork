@@ -867,12 +867,16 @@ class C_GettingSVMData(C_GettingData):
             today_close = df.iloc[i - 1]['close_price']
             yesterday_close = df.iloc[i]['close_price']
             wave = log(today_close / yesterday_close)
-            if wave >= 0.015:
-                df.set_value(index, 'Label', 'bup')
-            elif wave <= -0.015:
-                df.set_value(index, 'Label', 'bdown')
+            if wave >= 0.03:
+                df.set_value(index, 'Label', 'bu')
+            elif wave >= 0.015 and wave < 0.03:
+                df.set_value(index, 'Label', 'su')
+            elif wave <= -0.03:
+                df.set_value(index, 'Label', 'bd')
+            elif wave > -0.03 and wave <= -0.015:
+                df.set_value(index, 'Label', 'sd')
             else:
-                df.set_value(index, 'Label', 'stay')
+                df.set_value(index, 'Label', 'st')
         return df
 
     def _cal_high_low_to_now(self, stock_code=None, df=None):
@@ -944,8 +948,10 @@ def get_batch_svm_data(stock_code, pp, ps, mode, dimension=None):
     # ------------------------------------------
     df, means, stds = ps.data_normalization(df)
     df_train, df_cv = ps._build_training_and_CV_set(df, mode)
-    df_train.to_csv('input\\%s_Train_%sO.csv' % (stock_code[2:], dimension), header=True, index=False)
-    df_cv.to_csv('input\\%s_CV_%sO.csv' % (stock_code[2:], dimension), header=True, index=False)
+    df_train.to_csv('D:\Personal\DataMining\\31_Projects\\01.Finance\\07.NN\BPNetwork\input\\'
+                    '%s_Train_%sO.csv' % (stock_code[2:], dimension), header=False, index=False)
+    df_cv.to_csv('D:\Personal\DataMining\\31_Projects\\01.Finance\\07.NN\BPNetwork\input\\'
+                 '%s_CV_%sO.csv' % (stock_code[2:], dimension), header=False, index=False)
     # df.to_csv('webdata\\stock_data_%s_%sO_L.csv' % (stock_code, dimension), header=True)
 
 
