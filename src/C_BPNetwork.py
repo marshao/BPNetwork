@@ -274,15 +274,15 @@ class C_Sub_TrainNetwork(C_BPNetwork):
             # Get Lables from Training Set
             label = vlist[-1]
             if label == 'bu':
-                label_vector = [1, 0, 0, 0]
+                label_vector = [1, 0, 0, 0, 0]
             elif label == 'su':
-                label_vector = [0, 1, 0, 0]
+                label_vector = [0, 1, 0, 0, 0]
             elif label == 'sd':
-                label_vector = [0, 0, 1, 0]
+                label_vector = [0, 0, 0, 1, 0]
             elif label == 'bd':
-                label_vector = [0, 0, 0, 1]
+                label_vector = [0, 0, 0, 0, 1]
             else:
-                label_vector = [0, 0, 0, 0]
+                label_vector = [0, 0, 1, 0, 0]
             trainingLabels.append(label_vector)
 
         print "Loaded %s Training Samples" % len(self.TrainingSamples)
@@ -311,15 +311,15 @@ class C_Sub_TrainNetwork(C_BPNetwork):
                 # Get Lables from Testing Set
                 label = vlist[-1]
                 if label == 'bu':
-                    label_vector = [1, 0, 0, 0]
+                    label_vector = [1, 0, 0, 0, 0]
                 elif label == 'su':
-                    label_vector = [0, 1, 0, 0]
+                    label_vector = [0, 1, 0, 0, 0]
                 elif label == 'sd':
-                    label_vector = [0, 0, 1, 0]
+                    label_vector = [0, 0, 0, 1, 0]
                 elif label == 'bd':
-                    label_vector = [0, 0, 0, 1]
+                    label_vector = [0, 0, 0, 0, 1]
                 else:
-                    label_vector = [0, 0, 0, 0]
+                    label_vector = [0, 0, 1, 0, 0]
                 testingLabels.append(label_vector)
             print "Loaded %s Testing Samples" % len(self.TestingSamples)
             self.TestingSamples = self._add_bias(np.array(testingSamples))
@@ -344,15 +344,15 @@ class C_Sub_TrainNetwork(C_BPNetwork):
                 # Get Lables from CV Set
                 label = vlist[-1]
                 if label == 'bu':
-                    label_vector = [1, 0, 0, 0]
+                    label_vector = [1, 0, 0, 0, 0]
                 elif label == 'su':
-                    label_vector = [0, 1, 0, 0]
+                    label_vector = [0, 1, 0, 0, 0]
                 elif label == 'sd':
-                    label_vector = [0, 0, 1, 0]
+                    label_vector = [0, 0, 0, 1, 0]
                 elif label == 'bd':
-                    label_vector = [0, 0, 0, 1]
+                    label_vector = [0, 0, 0, 0, 1]
                 else:
-                    label_vector = [0, 0, 0, 0]
+                    label_vector = [0, 0, 1, 0, 0]
                 cvLabels.append(label_vector)
             print "Loaded %s CV Samples" % len(self.CVSamples)
             self.CVSamples = self._add_bias(np.array(cvSamples))
@@ -371,15 +371,20 @@ class C_Sub_TrainNetwork(C_BPNetwork):
         # load Training Data
         self.load_training_set()
         # Forward Calculation
-        ooutput = self._forward_calculation(network, mode)
-        # Calculate Forward Propagation Cost
-        cost = self._Cal_Cost_Function(ooutput)
+        cost = self._forward_calculation(network, mode)
+
 
         # Add 1 loop
         network['CRound'] += 1
         print network['CRound']
 
     def _forward_calculation(self, network, mode):
+        '''
+
+        :param network:
+        :param mode: # Batch Training or Single Training
+        :return:
+        '''
         # Calculate output value of Hidden Layer 1
         input_set = self.TrainingSamples
         theta_set = np.transpose(network['H1theta'])
@@ -400,7 +405,10 @@ class C_Sub_TrainNetwork(C_BPNetwork):
         otheta_set = np.transpose(network['Otheta'])
         ooutput = self.cal_layer_output(theta_set=otheta_set, input_set=oinput)
 
-        return ooutput
+        # Calculate Forward Propagation Cost
+        cost = self._Cal_Cost_Function(ooutput, mode, network)
+
+        return cost
 
     def cal_layer_output(self, theta_set, input_set):
         '''
@@ -425,13 +433,46 @@ class C_Sub_TrainNetwork(C_BPNetwork):
         biased_set = np.c_[bias, input_set]
         return biased_set
 
-    def _Cal_Cost_Function(self, ooutput):
+    def _remove_bias_theta(self, ):
+        pass
+
+    def _Cal_Cost_Function(self, ooutput, mode, network):
         '''
-        Calculate Regularized cost value
+        Cost calculation of Neural Network
         :param ooutput:
+        :param mode: Batch mode or Single Mode
         :return:
         '''
-        pass
+        cost = 0
+        if mode == 'B':  # Batch Calculation
+            labels = self.TrainingLabels
+            count = labels.shape[0]
+            # Cost Calculation
+            cost = np.sum(np.dot(labels, np.transpose(np.log(ooutput))) + np.dot((1 - labels),
+                                                                                 np.transpose(np.log(1 - ooutput)))) / (
+                   -1 * count)
+            # print cost
+            # Regularization term calculation
+            regularization_term = 0
+            h1theta = np.power(np.array(network['H1theta'])[:, 1:], 2)
+            regularization_term += np.sum(h1theta)
+
+            if network['layer'] == 4:
+                h2theta = np.power(np.array(network['H2theta'])[:, 1:], 2)
+                regularization_term += np.sum(h2theta)
+            otheta = np.power(np.array(network['Otheta'])[:, 1:], 2)
+            regularization_term += np.sum(otheta)
+            regularization_term = (regularization_term * network['lambada']) / (2 * count)
+
+            # Final Cost
+            cost = cost + regularization_term
+        else:
+            pass
+
+        return cost
+
+
+
 
     def _Backward_Calculation(self):
         pass
