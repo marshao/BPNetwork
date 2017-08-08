@@ -134,15 +134,18 @@ class C_Sub_BuildUpNetwork(C_BPNetwork):
             'H1ParameterNumbers': 0,
             'H1theta': [],  # Hidden Layer 1 Parameters
             'H1output': [],  # Hidden Layer 1 output
-            # 'H1active': [],  # Hidden Layer 1 activation result
+            'H1error': [],  # Hidden Layer 1 errors
+            'H1delta': [],  # Hidden Layer 1 delta
             'H2ParameterNumbers': 0,
             'H2theta': [],  # Hidden Layer 2 Parameters
             'H2output': [],  # Hidden Layer 2 output
-            # 'H2active': [],  # Hidden Layer 2 activation result
+            'H2error': [],  # Hidden Layer 2 error
+            'H2delta': [],  # Hidden Layer 2 delta
             'OParameterNumbers': 0,
             'Otheta': [],  # Output layer Parameters
             'Ooutput': [],  # Ouput Layer 2 output
-            # 'Oactive': [],  # Output Layer 2 activation result
+            'Oerror': [],  # Output Layer 2 error
+            'Odelta': [],  # Output Layer Delta
             'BatchMode': True,  # Switch of Batch Mode
             'BCost': 0.0,  # batch Cost for whole Training Set
             'SCost': 0.0,  # Single Cost for each Training sample
@@ -370,13 +373,17 @@ class C_Sub_TrainNetwork(C_BPNetwork):
 
         # load Training Data
         self.load_training_set()
-        # Forward Calculation
-        cost = self._forward_calculation(network, mode)
 
+        if mode == 'B':
+            # Forward Calculation
+            total_cost = self._forward_calculation(network, mode)
+
+            # Backword Calculation
+            self._backward_calculation(network, mode)
 
         # Add 1 loop
         network['CRound'] += 1
-        print network['CRound']
+        # print network['CRound']
 
     def _forward_calculation(self, network, mode):
         '''
@@ -389,6 +396,7 @@ class C_Sub_TrainNetwork(C_BPNetwork):
         input_set = self.TrainingSamples
         theta_set = np.transpose(network['H1theta'])
         h1output = self.cal_layer_output(theta_set=theta_set, input_set=input_set)
+        #h1output_set_sum = np.sum(h1output)
         network['H1output'] = h1output
 
         # Calculate Hidden Layer 2
@@ -396,6 +404,7 @@ class C_Sub_TrainNetwork(C_BPNetwork):
             h2input = self._add_bias(h1output)
             theta_set = np.transpose(network['H2theta'])
             h2output = self.cal_layer_output(theta_set=theta_set, input_set=h2input)
+            #h2output_set_sum = np.sum(h2output, 1)
             network['H2output'] = h2output
             oinput = self._add_bias(h2output)
         else:
@@ -404,11 +413,13 @@ class C_Sub_TrainNetwork(C_BPNetwork):
         # Calculate output layer
         otheta_set = np.transpose(network['Otheta'])
         ooutput = self.cal_layer_output(theta_set=otheta_set, input_set=oinput)
+        # ooutput_set_sum =  np.sum(ooutput, 1)
+        network['Ooutput'] = ooutput
 
         # Calculate Forward Propagation Cost
-        cost = self._Cal_Cost_Function(ooutput, mode, network)
-
-        return cost
+        if mode == 'B':
+            total_cost = self._cal_cost_function(ooutput, mode, network)
+            return total_cost
 
     def cal_layer_output(self, theta_set, input_set):
         '''
@@ -417,12 +428,20 @@ class C_Sub_TrainNetwork(C_BPNetwork):
         :param layer_input: Is a np.array of the inputs for a layer
         :return: output value
         '''
+        '''
         # Initialize activation function
         sigmoid = lambda x: 1 / (1 + np.exp(x))
         vfunc = np.vectorize(sigmoid)
         # Calculate the output
         output = vfunc(np.dot(input_set, theta_set))
+        '''
+        output = self._cal_activation(np.dot(input_set, theta_set))
         return output
+
+    def _cal_activation(self, in_value):
+        activated_value = 1 / (1 + np.exp(in_value))
+        return activated_value
+
 
     def _add_bias(self, input_set):
         '''
@@ -433,10 +452,7 @@ class C_Sub_TrainNetwork(C_BPNetwork):
         biased_set = np.c_[bias, input_set]
         return biased_set
 
-    def _remove_bias_theta(self, ):
-        pass
-
-    def _Cal_Cost_Function(self, ooutput, mode, network):
+    def _cal_cost_function(self, ooutput, mode, network):
         '''
         Cost calculation of Neural Network
         :param ooutput:
@@ -447,11 +463,13 @@ class C_Sub_TrainNetwork(C_BPNetwork):
         if mode == 'B':  # Batch Calculation
             labels = self.TrainingLabels
             count = labels.shape[0]
-            # Cost Calculation
-            cost = np.sum(np.dot(labels, np.transpose(np.log(ooutput))) + np.dot((1 - labels),
-                                                                                 np.transpose(np.log(1 - ooutput)))) / (
-                   -1 * count)
-            # print cost
+            # Individal Cost
+            individal_costs = np.dot(labels, np.transpose(np.log(ooutput))) + np.dot((1 - labels),
+                                                                                     np.transpose(np.log(1 - ooutput)))
+
+            # Total Cost Calculation
+            total_cost = np.sum(individal_costs) / (-1 * count)
+
             # Regularization term calculation
             regularization_term = 0
             h1theta = np.power(np.array(network['H1theta'])[:, 1:], 2)
@@ -465,17 +483,64 @@ class C_Sub_TrainNetwork(C_BPNetwork):
             regularization_term = (regularization_term * network['lambada']) / (2 * count)
 
             # Final Cost
-            cost = cost + regularization_term
+            total_cost = total_cost + regularization_term
+            return total_cost
         else:
             pass
 
         return cost
 
+    def _backward_calculation(self, network, mode):
+        network = self._cal_error(network, mode)
+        self._cal_delta(network, mode)
 
+    def _cal_error(self, network, mode):
+        '''
+        Errors calculation for each layer in Back propagation
+        :param network:
+        :return:
+        '''
+        # Calculate output level errors
+        ooutput = network['Ooutput']
+        otheta = network['Otheta']
+        labels = self.TrainingLabels
+        output_error = ooutput - labels
+        error_dis = np.dot(output_error, otheta[:, 1:])
+        network['Oerror'] = output_error
 
+        # Calculate H2 layer errors
+        if network['layer'] == 4:
+            h2output = network['H2output']
+            h2theta = network['H2theta']
+            h2_error = error_dis * h2output * (1 - h2output)
+            error_dis = np.dot(h2_error, h2theta[:, 1:])
+            network['H2error'] = h2_error
+            # network['H2delta']
+        # Calculate H1 layer errors
+        h1output = network['H1output']
+        h1error = error_dis * h1output * (1 - h1output)
+        network['H1error'] = h1error
 
-    def _Backward_Calculation(self):
-        pass
+        return network
+
+    def _cal_delta(self, network, mode):
+        if network['layer'] == 4:
+            # Calculate the Delta for hidden layer 2
+            h2output = network['H2output']
+            output_error = network['Oerror']
+        else:  # Calculate the Delta for hidden layer 1
+            h1output = network['H1output']
+            output_error = network['Oerror']
+            delta_sum = np.zeros((5, 10))
+            for i in range(h1output.shape[0]):
+                delta = np.ones((5, 10))
+                output_trans = h1output[i]
+                delta = delta * output_trans
+                error_trans = output_error[i]
+                delta = delta.T * error_trans
+                delta_sum = delta_sum + delta.T
+                # Calculate Delta for input layer
+
 
     def _Save_Mode(self):
         pass
