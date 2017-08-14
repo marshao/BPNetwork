@@ -129,167 +129,26 @@ class C_BPNetwork:
             fileName = self._output_dir + 'performance.csv'
             np.savetxt(fileName, per_log, delimiter=',')
 
-class C_Sub_BuildUpNetwork(C_BPNetwork):
-    def __init__(self):
-        C_BPNetwork.__init__(self)
-        self.network = {
-            'layer': 0,
-            'inode': 0,
-            'h1node': 0,
-            'h2node': 0,
-            'onode': 0,
-            'H1ParameterNumbers': 0,
-            'H1theta_ini': [],  # Hidden Layer 1 initial Parameters
-            'H1theta': [],  # Hidden Layer 1 t step Parameters
-            'H1theta_t1': [],  # Hidden Layer 1 t-1 step parameters
-            'H1output': [],  # Hidden Layer 1 output
-            'H1error': [],  # Hidden Layer 1 errors
-            'H1delta': [],  # Hidden Layer 1 delta
-            'H1delta_t1': [],  # Hidden Layer 1 t-1 step delta
-            'H2ParameterNumbers': 0,
-            'H2theta_ini': [],  # Hidden Layer 2 initial Parameters
-            'H2theta': [],  # Hidden Layer 2 t step Parameters
-            'H2theta_t1': [],  # Hidden Layer 2 t-1 step parameters
-            'H2output': [],  # Hidden Layer 2 output
-            'H2error': [],  # Hidden Layer 2 error
-            'H2delta': [],  # Hidden Layer 2 delta
-            'H2delta_t1': [],  # Hidden Layer 1 t-1 step delta
-            'OParameterNumbers': 0,
-            'Otheta_ini': [],  # Output layer initial Parameters
-            'Otheta': [],  # Output layer t step Parameters
-            'Otheta_t1': [],  # Output Layer 1 t-1 step parameters
-            'Ooutput': [],  # Ouput Layer 2 output
-            'Oerror': [],  # Output Layer 2 error
-            'Odelta': [],  # Output Layer Delta
-            'Odelta_t1': [],  # Output Layer t-1 step delta
-            'BatchMode': True,  # Switch of Batch Mode
-            'BCost': 0.0,  # batch Cost for whole Training Set
-            'SCost': 0.0,  # Single Cost for each Training sample
-            'CT': 0.0,  # Cost Threshold, the traget level of cost
-            'CRound': 0,  # Current Training Rounds
-            'MRound': 0,  # Max Training Rounds
-            'lambda': 0.0,  # Regularization Parameter
-            'mu': 0.0,  # Learning Rate
-            'epsilon': 0.0,  # Step length of Calculating the Derivative of parameter theta
-            'momentum': False,  # Switch of Momentum model
-            'alpha': 0.0  # Parameter of momentum term
-        }
-
-    def build_network_main(self, layers=None, inode=None, h1node=None, h2node=None, onode=None, batch_mode=True,
-                           momentum=False, alpha=0.3, MRound=10, mu=0.7, regular_term=3.0):
-        '''
-        This is the main function to build up a Back Propagation Network
-        :param layers: layer numbers of the network
-        :param inode: Number of input nodes
-        :param h1node: Number of Hidden Layer 1 nodes
-        :param h2node: Number of Hidden Layer 2 nodes
-        :param onode: Numbers of Output Layer nodes
-        :return:
-        '''
-        if layers is None:
-            layers = 3
-        elif layers != 3 and layers != 4:
-            print "System can only  build 3 or 4 layers network."
-            return
-
-        if inode is None:
-            inode = 8
-        if h1node is None:
-            h1node = 5
-        if h2node is None:
-            h2node = 0
-        if onode is None:
-            onode = 4
-
-        self.network['layer'] = layers,
-        self.network['inode'] = inode,
-        self.network['h1node'] = h1node,
-        self.network['h2node'] = h2node,
-        self.network['onode'] = onode,
-        self.network['BatchMode'] = batch_mode,  # Switch of Batch Mode
-
-        # Initialize the Parameters for each node.
-        # The first columns of each set of parameter are 1 corresponding to the Bias.
-        self._initialize_parameters(self.network)
-        # Initialize the variation length of Theta, normally use 2epsilon to calculate the two sides derivative.
-        self.network['epsilon'] = 0.012
-        # Set the allowed Max Rounds of Training:
-        self.network['MRound'] = MRound
-        # Initialize the Regularization parameter, regularization is to balance the current delta and last theta
-        self.network['lambda'] = regular_term
-        # Initialize the Learning Rate
-        self.network['mu'] = mu
-        # Initialize the Momentum model
-        if momentum:
-            self.network['momentum'] = True
-            self.network['alpha'] = alpha
-        # Save Mode
-        self._save_model(network=self.network, mode='m')
-
-
-    def _initialize_parameters(self, network):
-        '''
-        This fucntion is to initialize origin prameters for the network.
-        The parameters are randoms selected number between 0 and 1.
-        The parameters should be small enough
-        :param network:
-        :return:
-        '''
-
-        H1theta = np.random.random_sample((network['h1node'][0], network['inode'][0] + 1))
-        network['H1theta']=H1theta
-        network['H1theta_ini'] = H1theta
-        # H1theta_2 = np.repeat(np.random.random_sample((1, network['inode'][0] + 1)),network['h1node'][0], axis=0)
-        #network['H1theta'] = H1theta_2
-        if network['h2node'][0] != 0:
-            H2theta = np.random.random_sample((network['h2node'][0], network['h1node'][0] + 1))
-            network['H2theta'] = H2theta
-            network['H2theta_ini'] = H2theta
-            # H2theta_2 = np.repeat(np.random.random_sample((1, network['h1node'][0] + 1)), network['h2node'][0], axis=0)
-            # network['H2theta'] = H2theta_2
-            Otheta = np.random.random_sample((network['onode'][0], network['h2node'][0] + 1))
-            network['Otheta'] = Otheta
-            network['Otheta_ini'] = Otheta
-            # Otheta_2 = np.repeat(np.random.random_sample((1, network['h2node'][0] + 1)), network['onode'][0], axis=0)
-            #network['Otheta'] = Otheta_2
-        else:
-            Otheta = np.random.random_sample((network['onode'][0], network['h1node'][0] + 1))
-            network['Otheta'] = Otheta
-            network['Otheta_ini'] = Otheta
-            # Otheta_2 = np.repeat(np.random.random_sample((1, network['h1node'][0] + 1)), network['onode'][0], axis=0)
-            #network['Otheta'] = Otheta_2
-
-    '''
-    def _save_model(self, network=None, per_log=None, mode='m'):
-        if mode == 'm':
-            fileName = self._output_dir + 'mode.csv'
-            with open(fileName, "wb") as csvFile:
-                csvWriter = csv.writer(csvFile)
-                for k, v in network.iteritems():
-                    csvWriter.writerow([k, v])
-                csvFile.close()
-        elif mode == 'p':
-            fileName = self._output_dir + 'performance.csv'
-            np.savetxt(fileName, per_log, delimiter=',')
-    '''
-
-    def _load_model(self):
-        '''
+    def _load_model(self, network=None):
+        #'''
         fileName = self._output_dir + 'mode.csv'
         with open(fileName, "r") as csvFile:
             dataLine = csvFile.readline().strip("\n")
             while dataLine != "":
-                tmpList = dataLine.split(splitsymbol)
-                dataDict[tmpList[keyIndex]] = tmpList[valueIndex]
+                print dataLine
+                tmpList = dataLine.split(',')
+                if tmpList[0] == 'H1theta_ini':
+                    print dataLine
+                elif tmpList[0]=='H2theta_ini':
+                    print dataLine
+                elif tmpList[0]=='Otheta_ini':
+                    print dataLine
+                #network[tmpList[0]] = tmpList[1]
                 dataLine = csvFile.readline().strip("\n")
             csvFile.close()
-        return dataDict
-        '''
-        pass
+        print network
+        #'''
 
-class C_Sub_TrainNetwork(C_BPNetwork):
-    def __init__(self):
-        C_BPNetwork.__init__(self)
 
     def load_training_set(self, model=None, training_source=None, testing_source=None, cross_validation_source=None):
         '''
@@ -305,8 +164,8 @@ class C_Sub_TrainNetwork(C_BPNetwork):
         if cross_validation_source is None:
             cross_validation_source = self._input_dir + '002310_CV_HO.csv'
         if training_source is None:
-            training_source = self._input_dir + '002310_Train_HO.csv'
-            #training_source = self._input_dir + 'test.csv'
+            #training_source = self._input_dir + '002310_Train_HO.csv'
+            training_source = self._input_dir + 'test.csv'
         if model is None:
             model = 'Tr'
         '''
@@ -338,7 +197,7 @@ class C_Sub_TrainNetwork(C_BPNetwork):
 
             # Get Lables from Training Set
             label = vlist[-1]
-            #'''
+            '''
             if label == 'bu':
                 label_vector = [1, 0, 0, 0, 0]
             elif label == 'su':
@@ -354,7 +213,7 @@ class C_Sub_TrainNetwork(C_BPNetwork):
                 label_vector = [1, 0]
             else:
                 label_vector = [0, 1]
-            '''
+            #'''
             trainingLabels.append(label_vector)
 
         print "Loaded %s Training Samples" % len(self.TrainingSamples)
@@ -436,6 +295,152 @@ class C_Sub_TrainNetwork(C_BPNetwork):
             pass
         return
 
+    def _add_bias(self, input_set):
+        '''
+        Add bias term for layer input
+        :return:
+        '''
+        bias = np.ones((input_set.shape[0], 1))*1.0
+        biased_set = np.c_[bias, input_set]
+        return biased_set
+
+class C_Sub_BuildUpNetwork(C_BPNetwork):
+    def __init__(self):
+        C_BPNetwork.__init__(self)
+        self.network = {
+            'layer': 0,
+            'inode': 0,
+            'h1node': 0,
+            'h2node': 0,
+            'onode': 0,
+            'H1ParameterNumbers': 0,
+            'H1theta_ini': [],  # Hidden Layer 1 initial Parameters
+            'H1theta': [],  # Hidden Layer 1 t step Parameters
+            'H1theta_t1': [],  # Hidden Layer 1 t-1 step parameters
+            'H1output': [],  # Hidden Layer 1 output
+            'H1error': [],  # Hidden Layer 1 errors
+            'H1delta': [],  # Hidden Layer 1 delta
+            'H1delta_t1': [],  # Hidden Layer 1 t-1 step delta
+            'H2ParameterNumbers': 0,
+            'H2theta_ini': [],  # Hidden Layer 2 initial Parameters
+            'H2theta': [],  # Hidden Layer 2 t step Parameters
+            'H2theta_t1': [],  # Hidden Layer 2 t-1 step parameters
+            'H2output': [],  # Hidden Layer 2 output
+            'H2error': [],  # Hidden Layer 2 error
+            'H2delta': [],  # Hidden Layer 2 delta
+            'H2delta_t1': [],  # Hidden Layer 1 t-1 step delta
+            'OParameterNumbers': 0,
+            'Otheta_ini': [],  # Output layer initial Parameters
+            'Otheta': [],  # Output layer t step Parameters
+            'Otheta_t1': [],  # Output Layer 1 t-1 step parameters
+            'Ooutput': [],  # Ouput Layer 2 output
+            'Oerror': [],  # Output Layer 2 error
+            'Odelta': [],  # Output Layer Delta
+            'Odelta_t1': [],  # Output Layer t-1 step delta
+            'BatchMode': True,  # Switch of Batch Mode
+            'BCost': 0.0,  # batch Cost for whole Training Set
+            'SCost': 0.0,  # Single Cost for each Training sample
+            'CT': 0.0,  # Cost Threshold, the traget level of cost
+            'CRound': 0,  # Current Training Rounds
+            'MRound': 0,  # Max Training Rounds
+            'lambda': 0.0,  # Regularization Parameter
+            'mu': 0.0,  # Learning Rate
+            'epsilon': 0.0,  # Step length of Calculating the Derivative of parameter theta
+            'momentum': False,  # Switch of Momentum model
+            'alpha': 0.0,  # Parameter of momentum term
+            'epslon':0.0 # Parameter of Random initialization
+        }
+
+    def build_network_main(self, layers=None, inode=None, h1node=None, h2node=None, onode=None, batch_mode=True,
+                           momentum=False, alpha=0.3, MRound=10, mu=0.7, regular_term=3.0, epslon=0.2):
+        '''
+        This is the main function to build up a Back Propagation Network
+        :param layers: layer numbers of the network
+        :param inode: Number of input nodes
+        :param h1node: Number of Hidden Layer 1 nodes
+        :param h2node: Number of Hidden Layer 2 nodes
+        :param onode: Numbers of Output Layer nodes
+        :return:
+        '''
+        if layers is None:
+            layers = 3
+        elif layers != 3 and layers != 4:
+            print "System can only  build 3 or 4 layers network."
+            return
+
+        if inode is None:
+            inode = 8
+        if h1node is None:
+            h1node = 5
+        if h2node is None:
+            h2node = 0
+        if onode is None:
+            onode = 4
+
+        self.network['layer'] = layers,
+        self.network['inode'] = inode,
+        self.network['h1node'] = h1node,
+        self.network['h2node'] = h2node,
+        self.network['onode'] = onode,
+        self.network['BatchMode'] = batch_mode,  # Switch of Batch Mode
+
+        # Random initiliaztion Parameter. Make sure the initial parameter is in [-epslon , epslon]
+        self.epslon = epslon
+        # Initialize the variation length of Theta, normally use 2epsilon to calculate the two sides derivative.
+        self.network['epslon'] = 0.012
+        # Set the allowed Max Rounds of Training:
+        self.network['MRound'] = MRound
+        # Initialize the Regularization parameter, regularization is to balance the current delta and last theta
+        self.network['lambda'] = regular_term
+        # Initialize the Learning Rate
+        self.network['mu'] = mu
+        # Initialize the Momentum model
+        if momentum:
+            self.network['momentum'] = True
+            self.network['alpha'] = alpha
+        # Initialize the Parameters for each node.
+        # The first columns of each set of parameter are 1 corresponding to the Bias.
+        self._initialize_parameters(self.network)
+        # Save Mode
+        self._save_model(network=self.network, mode='m')
+
+
+    def _initialize_parameters(self, network):
+        '''
+        This fucntion is to initialize origin prameters for the network.
+        The parameters are randoms selected number between 0 and 1.
+        The parameters should be small enough
+        :param network:
+        :return:
+        '''
+        H1theta = np.random.random_sample((network['h1node'][0], network['inode'][0] + 1))
+        H1theta = np.random.random_sample((network['h1node'][0], network['inode'][0] + 1))*(2*network['epslon'])-network['epslon']
+        network['H1theta']=H1theta
+        network['H1theta_ini'] = H1theta
+        # H1theta_2 = np.repeat(np.random.random_sample((1, network['inode'][0] + 1)),network['h1node'][0], axis=0)
+        #network['H1theta'] = H1theta_2
+        if network['h2node'][0] != 0:
+            H2theta = np.random.random_sample((network['h2node'][0], network['h1node'][0] + 1))*(2*network['epslon'])-network['epslon']
+            network['H2theta'] = H2theta
+            network['H2theta_ini'] = H2theta
+            # H2theta_2 = np.repeat(np.random.random_sample((1, network['h1node'][0] + 1)), network['h2node'][0], axis=0)
+            # network['H2theta'] = H2theta_2
+            Otheta = np.random.random_sample((network['onode'][0], network['h2node'][0] + 1))*(2*network['epslon'])-network['epslon']
+            network['Otheta'] = Otheta
+            network['Otheta_ini'] = Otheta
+            # Otheta_2 = np.repeat(np.random.random_sample((1, network['h2node'][0] + 1)), network['onode'][0], axis=0)
+            #network['Otheta'] = Otheta_2
+        else:
+            Otheta = np.random.random_sample((network['onode'][0], network['h1node'][0] + 1))*(2*network['epslon'])-network['epslon']
+            network['Otheta'] = Otheta
+            network['Otheta_ini'] = Otheta
+            # Otheta_2 = np.repeat(np.random.random_sample((1, network['h1node'][0] + 1)), network['onode'][0], axis=0)
+            #network['Otheta'] = Otheta_2
+
+class C_Sub_TrainNetwork(C_BPNetwork):
+    def __init__(self):
+        C_BPNetwork.__init__(self)
+
     def Train_Main(self, network, mode=None):
         if mode is None:
             mode = 'B'  # Batch Train or Singal Train
@@ -461,7 +466,7 @@ class C_Sub_TrainNetwork(C_BPNetwork):
             if mode == 'B':
                 print "Round %s ---------------------------------------------------------" % network['CRound']
                 # Forward Calculation
-                loop_total_cost = self._forward_calculation(network, mode)
+                loop_total_cost = self._forward_calculation(network, mode, source='Train')
                 network['BCost'] = loop_total_cost
                 total_cost = self._training_control(network, total_cost, loop_total_cost, i)
 
@@ -472,6 +477,23 @@ class C_Sub_TrainNetwork(C_BPNetwork):
             network['CRound'] = i
         self._save_model(per_log=total_cost, mode='p')
         self._save_model(network=network, mode='m')
+
+        return network
+
+    def Cross_Validation(self, network):
+        Ooutput = self._forward_calculation(network, mode='P', source='CV')
+        max_index = np.argmax(Ooutput, axis=1)
+        prediction = np.zeros(Ooutput.shape)
+        i = 0
+        print max_index.shape
+        while i < max_index.shape[0]:
+            index = max_index[i]
+            prediction[i][index] = 1
+            i+= 1
+        print Ooutput
+        #print prediction
+        #print self.CVLabels
+        #print (prediction - self.CVLabels)
 
     def _training_control(self, network, total_cost, loop_total_cost, round):
         '''
@@ -502,7 +524,7 @@ class C_Sub_TrainNetwork(C_BPNetwork):
 
         return total_cost
 
-    def _forward_calculation(self, network, mode):
+    def _forward_calculation(self, network, mode, source=None):
         '''
 
         :param network:
@@ -510,10 +532,22 @@ class C_Sub_TrainNetwork(C_BPNetwork):
         :return:
         '''
         # Calculate output value of Hidden Layer 1
-        input_set = self.TrainingSamples
+        if source=='Train':
+            input_set = self.TrainingSamples
+        elif source == 'CV':
+            input_set = self.CVSamples
+        elif source == 'Testing':
+            input_set = self.TestingSamples
+        else:
+            input_set = source
+
+        print "Input Set \n %s"%input_set[3:6]
+        print "H1 Theta Set \n %s"%network['H1theta'][3:6]
         theta_set = np.transpose(network['H1theta'])
+        print "H1 Theta Transformed Theta \n %s"%theta_set[3:6]
         h1output = self._cal_layer_output(theta_set=theta_set, input_set=input_set)
         network['H1output'] = h1output
+        print "h1output Set \n %s"%h1output[3:6]
 
         # Calculate Hidden Layer 2
         if network['layer'] == 4:
@@ -527,13 +561,21 @@ class C_Sub_TrainNetwork(C_BPNetwork):
 
         # Calculate output layer
         otheta_set = np.transpose(network['Otheta'])
+        print "Output Theta \n %s" % network['Otheta'][3:6]
+        print "Transformed output theta \n %s" % otheta_set[3:6]
         ooutput = self._cal_layer_output(theta_set=otheta_set, input_set=oinput)
+        print "final Output \n %s"%ooutput[3:6]
+        print "Traing_Label \n %s"%self.TrainingLabels[3:6]
         network['Ooutput'] = ooutput
 
         # Calculate Forward Propagation Cost
-        if mode == 'B':
+        '''
+        if mode == 'B': # Batch calculation mode
             total_cost = self._cal_cost_function(ooutput, mode, network)
             return total_cost
+        elif mode == 'P': # Prediction Mode
+            return network['Ooutput']
+         '''
 
     def _cal_layer_output(self, theta_set, input_set):
         '''
@@ -542,6 +584,8 @@ class C_Sub_TrainNetwork(C_BPNetwork):
         :param layer_input: Is a np.array of the inputs for a layer
         :return: output value
         '''
+        print "Before activation"
+        print np.dot(input_set, theta_set)[3:6]
         output = self._cal_activation(np.dot(input_set, theta_set))
         return output
 
@@ -549,15 +593,6 @@ class C_Sub_TrainNetwork(C_BPNetwork):
         # activated_value = 1.0 / (1.0 + np.exp(in_value))
         activated_value = 0.5 * (1 + np.tanh(0.5 * in_value))
         return activated_value
-
-    def _add_bias(self, input_set):
-        '''
-        Add bias term for layer input
-        :return:
-        '''
-        bias = np.ones((input_set.shape[0], 1))*1.0
-        biased_set = np.c_[bias, input_set]
-        return biased_set
 
     def _cal_cost_function(self, ooutput, mode, network):
         '''
@@ -613,23 +648,31 @@ class C_Sub_TrainNetwork(C_BPNetwork):
         '''
         # Calculate output level errors
         ooutput = network['Ooutput']
-        otheta = network['Otheta']
         labels = self.TrainingLabels
         output_error = ooutput - labels
-        error_dis = np.dot(output_error, otheta[:, 1:])
         network['Oerror'] = output_error
+
 
         # Calculate H2 layer errors
         if network['layer'] == 4:
+            error_upper = network['Oerror']
+            Otheta = network['Otheta']
             h2output = network['H2output']
-            h2theta = network['H2theta']
-            h2_error = error_dis * h2output * (1 - h2output)
-            error_dis = np.dot(h2_error, h2theta[:, 1:])
-            network['H2error'] = h2_error
-            # network['H2delta']
+            error_Otheta = np.dot(error_upper, Otheta)[:, 1:]
+            h2error = error_Otheta * h2output * (1 - h2output)
+
+            h1theta = network['H1theta']
+            h1output = network['H1output']
+            error_H1theta = np.dot(h2error, h1theta)[:, 1:]
+            h1error = error_H1theta * h1output * (1 - h1output)
+
         # Calculate H1 layer errors
+        error_upper = network['Oerror']
+        Otheta = network['Otheta']
         h1output = network['H1output']
-        h1error = error_dis * h1output * (1 - h1output)
+        error_Otheta = np.dot(error_upper, Otheta)[:, 1:]
+        h1error = error_Otheta * h1output * (1 - h1output)
+        #print h1error.shape
         network['H1error'] = h1error
 
         return network
@@ -663,15 +706,15 @@ class C_Sub_TrainNetwork(C_BPNetwork):
 
         return network
 
-    def _delta_update_momentum(self, network, delta_sum, theta_layer):
-        theta_t1 = theta_layer + '_t1'
-        if network[theta_layer] != []:
-            network[theta_t1] = network[theta_layer]
-            network[theta_layer] = self._cal_delta_learning_rate(network, delta_sum) + network['alpha'] * network[
-                theta_t1]
+    def _delta_update_momentum(self, network, delta_sum, delta_layer):
+        delta_t1 = delta_layer + '_t1'
+        if network[delta_layer] != []:
+            network[delta_t1] = network[delta_layer]
+            network[delta_layer] = self._cal_delta_learning_rate(network, delta_sum) + network['alpha'] * network[
+                delta_t1]
         else:
-            network[theta_layer] = self._cal_delta_learning_rate(network, delta_sum)
-            network[theta_t1] = np.zeros(network[theta_layer].shape)
+            network[delta_layer] = self._cal_delta_learning_rate(network, delta_sum)
+            network[delta_t1] = np.zeros(network[delta_layer].shape)
 
     def _cal_delta_sum(self, network, higher_layer, lower_layer):
         '''
@@ -739,25 +782,36 @@ class C_Sub_TrainNetwork(C_BPNetwork):
 
         return network
 
-
 class C_Sub_NetworkPrediction(C_BPNetwork):
     def __init__(self):
         C_BPNetwork.__init__(self)
 
-    def _Load_Mode(self):
-        pass
 
-    def Predict(self):
+    def predict_main(self, mode=None):
+        if mode is None:
+            mode = 'CV'
+        else:
+            mode = 'Te'
+        # load CV Data
+        self.load_training_set(model='CV')
+
+
+        self._load_model()
         pass
 
 
 def main():
     network = C_Sub_BuildUpNetwork()
-    network.build_network_main(layers=3, inode=20, h1node=10, h2node=0, onode=5, MRound=330, regular_term=1, mu=0.1,
-                               momentum=True, alpha=0.5)
-    #network.build_network_main(layers=3, inode=5, h1node=3, h2node=0, onode=2, MRound=10)
+    network._load_model()
+    #network.build_network_main(layers=3, inode=20, h1node=10, h2node=0, onode=5, MRound=10, regular_term=1, mu=0.1,
+    #                           momentum=False, alpha=0.5, epslon=0.2)
+    '''
+    network.build_network_main(layers=3, inode=5, h1node=3, h2node=0, onode=2, MRound=2,regular_term=1, mu=0.1,
+                              momentum=True, alpha=0.5, epslon=0.2)
     train = C_Sub_TrainNetwork()
-    train.Train_Main(network.network)
+    trainded_network = train.Train_Main(network.network)
+    #train.Cross_Validation(trainded_network)
+    '''
 
 if __name__ == '__main__':
     main()
