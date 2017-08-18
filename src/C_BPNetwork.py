@@ -465,12 +465,11 @@ class C_Sub_TrainNetwork(C_BPNetwork):
                 print "Round %s ---------------------------------------------------------" % network['CRound']
                 # Forward Calculation
                 loop_total_cost = self._forward_calculation(network, mode, source='Train')
-                network['BCost'] = loop_total_cost
-                total_cost = self._training_control(network, total_cost, loop_total_cost, i)
-                #print "For Round # %s, the total cost is %s \n" % (i, loop_total_cost)
+                # total_cost = self._training_control(network, total_cost, loop_total_cost, i)
+                print "For Round # %s, the total cost is %s \n" % (i, loop_total_cost)
                 # Backword Calculation
                 network = self._backward_calculation(network, mode)
-                print network['Otheta'][:3, :]
+
             else:  # SGD
                 network = self.SGD_Training(network)
                 cost = self._cal_sig_cost(network)
@@ -496,20 +495,19 @@ class C_Sub_TrainNetwork(C_BPNetwork):
             oac = self._cal_activation((np.dot(h1ac, np.transpose(otheta)) + network['Obias']))
 
             # BackPropogation
-            odev = oac * (1 - oac)
-            h1dev = h1ac * (1 - h1ac)
-            oerror = (np.array(self.TrainingLabels[idx]) - oac) * odev
+            oder = oac * (1 - oac)
+            h1der = h1ac * (1 - h1ac)
+            oerror = (np.array(self.TrainingLabels[idx] - oac)) * oder
             odelta = np.dot(np.transpose(oerror), h1ac)
             network['Otheta'] += odelta * network['mu']
             network['Obias'] += np.sum(oerror, axis=0, keepdims=True) * network['mu']
-            h1error = np.dot(oerror, otheta) * h1dev
+            h1error = np.dot(oerror, otheta) * h1der
             sample = sample.reshape((-1, 1)).reshape((1, -1))
             h1delta = np.dot(np.transpose(h1error), sample)
             network['H1theta'] += h1delta * network['mu']
             network['H1bias'] += np.sum(h1error, axis=0, keepdims=True) * network['mu']
 
         return network
-
 
     def Cross_Validation(self, network):
         Ooutput = self._forward_calculation(network, mode='P', source='CV')
@@ -550,8 +548,8 @@ class C_Sub_TrainNetwork(C_BPNetwork):
         # print "Prediction is \n %s"%prediction
         # print "Labels is \n %s"%self.CVLabels
         # print "Difference is \n %s" % (prediction-labels)
+        print prediction
         print "Accuracy is %s" % round((np.count_nonzero(prediction - labels) /2),2)
-
 
     def _training_control(self, network, total_cost, loop_total_cost, round):
         '''
@@ -602,23 +600,24 @@ class C_Sub_TrainNetwork(C_BPNetwork):
         #Calculate Hidden Layer 1
         theta_set = np.transpose(network['H1theta'])
         h1output = self._cal_layer_output(theta_set=theta_set, input_set=input_set)
+        h1output += np.repeat(network['H1bias'], h1output.shape[0], axis=0)
         network['H1output'] = h1output
 
-        print network['layer']
         # Calculate Hidden Layer 2
         if network['layer'][0] == 4:
-            h2input = self._add_bias(h1output)
             theta_set = np.transpose(network['H2theta'])
-            h2output = self._cal_layer_output(theta_set=theta_set, input_set=h2input)
+            h2output = self._cal_layer_output(theta_set=theta_set, input_set=h1output)
+            h2output += np.repeat(network['H2bias'], h2output.shape[0], axis=0)
             network['H2output'] = h2output
-            oinput = self._add_bias(h2output)
+            oinput = h2output
             print "Calculating layer 4"
         else:
-            oinput = self._add_bias(h1output)
+            oinput = h1output
 
         # Calculate output layer
         otheta_set = np.transpose(network['Otheta'])
         ooutput = self._cal_layer_output(theta_set=otheta_set, input_set=oinput)
+        ooutput += np.repeat(network['Obias'], ooutput.shape[0], axis=0)
         network['Ooutput'] = ooutput
 
         # Calculate Forward Propagation Cost
@@ -635,8 +634,6 @@ class C_Sub_TrainNetwork(C_BPNetwork):
         :param layer_input: Is a np.array of the inputs for a layer
         :return: output value
         '''
-        # print "Before activation"
-        #print np.dot(input_set, theta_set)
         output = self._cal_activation(np.dot(input_set, theta_set))
         return output
 
@@ -652,19 +649,19 @@ class C_Sub_TrainNetwork(C_BPNetwork):
         :param mode: Batch mode or Single Mode
         :return:
         '''
-        cost = 0
+        total_cost = 0
         if mode == 'B':  # Batch Calculation
-            labels = self.TrainingLabels
+            labels = np.array(self.TrainingLabels)
             count = labels.shape[0]
             # Individal Cost
-            np.log(ooutput)
-            individal_costs = np.dot(labels, np.transpose(np.log(ooutput))) + np.dot((1 - labels),
-                                                                                     np.transpose(
-                                                                                         np.log(1.0 - ooutput)))
-
+            # individal_costs = np.dot(labels, np.transpose(np.log(ooutput))) + np.dot((1 - labels),
+            #                                                                         np.transpose(
+            #                                                                            np.log(1.0 - ooutput)))
+            individal_costs = np.power((labels - ooutput), 2)
             # Total Cost Calculation
-            total_cost = np.sum(individal_costs) / (-1 * count)
+            total_cost = np.sum(individal_costs) / 2
 
+            '''
             # Regularization term calculation
             regularization_term = 0
             h1theta = np.power(np.array(network['H1theta'])[:, 1:], 2)
@@ -678,12 +675,12 @@ class C_Sub_TrainNetwork(C_BPNetwork):
             regularization_term = (regularization_term * network['lambda']) / (2 * count)
 
             # Final Cost
-            total_cost = total_cost + regularization_term
+            #total_cost = total_cost + regularization_term
             return total_cost
         else:
             pass
-
-        return cost
+            '''
+        return total_cost
 
     def _cal_sig_cost(self, network):
         h1theta = network['H1theta']
@@ -713,8 +710,9 @@ class C_Sub_TrainNetwork(C_BPNetwork):
         '''
         # Calculate output level errors
         ooutput = network['Ooutput']
-        labels = self.TrainingLabels
-        output_error = ooutput - labels
+        oder = ooutput * (1 - ooutput)
+        labels = np.array(self.TrainingLabels)
+        output_error = (labels - ooutput) * oder
         network['Oerror'] = output_error
         #print "Ooutlevel Errors: \n %s"%output_error
 
@@ -724,8 +722,9 @@ class C_Sub_TrainNetwork(C_BPNetwork):
             error_upper = network['Oerror']
             Otheta = network['Otheta']
             h2output = network['H2output']
-            error_Otheta = np.dot(error_upper, Otheta)[:, 1:]
-            h2error = error_Otheta * h2output * (1 - h2output)
+            h2der = h2output * (1 - h2output)
+            error_Otheta = np.dot(error_upper, Otheta)
+            h2error = error_Otheta * h2der
             network['H2error'] = h2error
             error_upper = network['H2error']
             theta_upper = network['H2theta']
@@ -735,14 +734,13 @@ class C_Sub_TrainNetwork(C_BPNetwork):
 
         # Calculate H1 layer errors
         h1output = network['H1output']
-        error_Otheta = np.dot(error_upper, theta_upper)[:, 1:]
+        error_Otheta = np.dot(error_upper, theta_upper)
         h1error = error_Otheta * (h1output * (1 - h1output))
         network['H1error'] = h1error
 
         return network
 
     def _cal_delta_main(self, network, mode):
-
         # Calculate the Delta for hidden layer 2
         if network['layer'][0] == 4:
             delta_sum_o = self._cal_delta_sum(network, 'o', 'h2')
@@ -799,13 +797,13 @@ class C_Sub_TrainNetwork(C_BPNetwork):
             lower_output = self.TrainingSamples
         else:
             # lower_output = network[l_output]
-            lower_output = self._add_bias(network[l_output])
+            lower_output = network[l_output]
 
         higher_error = network[h_error]
-        delta_sum = np.zeros((network[h_node][0], network[l_node][0] + 1))
+        delta_sum = np.zeros((network[h_node][0], network[l_node][0]))
         for i in range(lower_output.shape[0]):
             #'''
-            delta = np.ones((network[h_node][0], network[l_node][0] + 1))
+            delta = np.ones((network[h_node][0], network[l_node][0]))
             output_trans = lower_output[i]
             delta = delta * output_trans
             error_trans = higher_error[i]
@@ -829,7 +827,8 @@ class C_Sub_TrainNetwork(C_BPNetwork):
         :param delta_sum:
         :return:
         '''
-        sample_count = self.TrainingSamples.shape[0]
+        sample_count = len(self.TrainingSamples)
+        #print sample_count
         learning_rate = network['mu']
         delta = (learning_rate * delta_sum) / sample_count
         #delta = (learning_rate * delta_sum)
@@ -839,26 +838,25 @@ class C_Sub_TrainNetwork(C_BPNetwork):
         regularizaion_term = network['lambda']
         # Update H1 level parameters
         network['H1theta_t1'] = np.array(network['H1theta'])
-        step1 = network['H1delta'][:, 1:] + regularizaion_term * network['H1theta_t1'][:, 1:]
-        last_step = network['H1theta_t1'][:, 1:]
-        network['H1theta'][:, 1:] = last_step - step1
+        network['H1theta'] = network['H1theta_t1'] - (network['H1delta'] + regularizaion_term * network['H1theta_t1'])
         # update Bias
-        #wrong
-        network['H1theta'][:, :1] = network['H1theta_t1'][:, :1] - network['H1delta'][:, :1]
+        network['H1bias'] -= np.sum(network['H1delta'], axis=1, keepdims=True).T
+
 
         # Update H2 level parameters
         if network['layer'][0] == 4:
             network['H2theta_t1'] = np.array(network['H2theta'])
-            network['H2theta'][:, 1:] = network['H2theta_t1'][:, 1:] - (
-            network['H2delta'][:, 1:] + regularizaion_term * network['H2theta_t1'][:, 1:])
-            network['H2theta'][:, :1] = network['H2theta_t1'][:, :1] - network['H2delta'][:, :1]
+            network['H2theta'] = network['H2theta_t1'] - (
+            network['H2delta'] + regularizaion_term * network['H2theta_t1'])
+            # Update H2 bias
+            network['H2bias'] -= np.sum(network['H2delta'], axis=1, keepdims=True).T
 
         # Update Output level parameters
         network['Otheta_t1'] = np.array(network['Otheta'])
-        network['Otheta'][:, 1:] = network['Otheta_t1'][:, 1:] - (
-        network['Odelta'][:, 1:] + regularizaion_term * network['Otheta_t1'][:, 1:])
+        network['Otheta'] = network['Otheta_t1'] - (
+            network['Odelta'] + regularizaion_term * network['Otheta_t1'])
         #Update Bias
-        network['Otheta'][:, :1] = network['Otheta_t1'][:, :1] - network['Odelta'][:, :1]
+        network['Obias'] -= np.sum(network['Odelta'], axis=1, keepdims=True).T
         return network
 
 class C_Sub_NetworkPrediction(C_BPNetwork):
@@ -881,16 +879,16 @@ class C_Sub_NetworkPrediction(C_BPNetwork):
 
 def main():
     network = C_Sub_BuildUpNetwork()
-    network.build_network_main(layers=3, inode=20, h1node=10, h2node=0, onode=5, MRound=1000, regular_term=1, mu=0.1,
+    network.build_network_main(layers=3, inode=20, h1node=10, h2node=0, onode=5, MRound=300, regular_term=1, mu=0.01,
                                momentum=False, alpha=0.1, epslon=0.2)
     # '''
     # network.build_network_main(layers=3, inode=5, h1node=3, h2node=0, onode=2, MRound=2,regular_term=1, mu=0.1,
     #                          momentum=True, alpha=0.5, epslon=0.9)
     network._load_model(network.network)
     train = C_Sub_TrainNetwork()
-    trained_network = train.Train_Main(network.network, training_source='002310', CV_source='002310', mode='s')
+    trained_network = train.Train_Main(network.network, training_source='002310', CV_source='002310', mode='B')
     # trained_network = train.Train_Main(network.network, training_source='002310', CV_source='002310')
-    # train.Cross_Validation(trained_network)
+    #train.Cross_Validation(trained_network)
     train.Cross_Validation_SGD(trained_network)
     #'''
 
