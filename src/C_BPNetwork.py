@@ -403,7 +403,7 @@ class C_Sub_BuildUpNetwork(C_BPNetwork):
         H1theta = np.random.uniform(low=0.1, high=2.0, size=(network['h1node'][0], network['inode'][0])) * (
         2 * network['epslon']) - \
                   network['epslon']
-        network['H1theta']=H1theta
+        network['H1theta'] = np.array(H1theta)
         network['H1theta_ini'] = np.array(H1theta)
         network['H1bias'] = np.ones((1, network['h1node'][0]))
         # H1theta_2 = np.repeat(np.random.random_sample((1, network['inode'][0] + 1)),network['h1node'][0], axis=0)
@@ -491,8 +491,8 @@ class C_Sub_TrainNetwork(C_BPNetwork):
             # for idx in range(0,1):
             # Froward Calculation
             sample = np.array(self.TrainingSamples[idx])
-            h1ac = self._cal_activation((np.dot(h1theta, sample) + network['H1bias']))
-            oac = self._cal_activation((np.dot(h1ac, np.transpose(otheta)) + network['Obias']))
+            h1ac = self._cal_activation_sig((np.dot(h1theta, sample) + network['H1bias']))
+            oac = self._cal_activation_sig((np.dot(h1ac, np.transpose(otheta)) + network['Obias']))
 
             # BackPropogation
             oder = oac * (1 - oac)
@@ -534,8 +534,14 @@ class C_Sub_TrainNetwork(C_BPNetwork):
             # Froward Calculation
             sample = np.array(self.CVSamples[idx])
             label = np.array(self.CVLabels[idx])
-            h1ac = self._cal_activation((np.dot(h1theta, sample) + network['H1bias']))
-            oac = self._cal_activation((np.dot(h1ac, np.transpose(otheta)) + network['Obias']))
+            h1ac = self._cal_activation_sig((np.dot(h1theta, sample) + network['H1bias']))
+            if network['layer'][0] == 4:
+                h2theta = network['H2theta']
+                h1ac = self._cal_activation_sig((np.dot(h1theta, sample) + network['H1bias']))
+                h2ac = self._cal_activation_sig((np.dot(h1ac, np.transpose(h2theta)) + network['H2bias']))
+                oac = self._cal_activation_sig((np.dot(h2ac, np.transpose(otheta)) + network['Obias']))
+            else:
+                oac = self._cal_activation_sig((np.dot(h1ac, np.transpose(otheta)) + network['Obias']))
             Ooutput[idx, :] = Ooutput[idx, :] + oac
 
         max_index = np.argmax(Ooutput, axis=1)
@@ -599,15 +605,15 @@ class C_Sub_TrainNetwork(C_BPNetwork):
 
         #Calculate Hidden Layer 1
         theta_set = np.transpose(network['H1theta'])
-        h1output = self._cal_layer_output(theta_set=theta_set, input_set=input_set)
-        h1output += np.repeat(network['H1bias'], h1output.shape[0], axis=0)
+        h1output = self._cal_layer_output(network, theta_set=theta_set, input_set=input_set, layer='h1')
+        #h1output += np.repeat(network['H1bias'], h1output.shape[0], axis=0)
         network['H1output'] = h1output
 
         # Calculate Hidden Layer 2
         if network['layer'][0] == 4:
             theta_set = np.transpose(network['H2theta'])
-            h2output = self._cal_layer_output(theta_set=theta_set, input_set=h1output)
-            h2output += np.repeat(network['H2bias'], h2output.shape[0], axis=0)
+            h2output = self._cal_layer_output(network, theta_set=theta_set, input_set=h1output, layer='h2')
+            #h2output += np.repeat(network['H2bias'], h2output.shape[0], axis=0)
             network['H2output'] = h2output
             oinput = h2output
             print "Calculating layer 4"
@@ -616,8 +622,7 @@ class C_Sub_TrainNetwork(C_BPNetwork):
 
         # Calculate output layer
         otheta_set = np.transpose(network['Otheta'])
-        ooutput = self._cal_layer_output(theta_set=otheta_set, input_set=oinput)
-        ooutput += np.repeat(network['Obias'], ooutput.shape[0], axis=0)
+        ooutput = self._cal_layer_output(network, theta_set=otheta_set, input_set=oinput, layer='o')
         network['Ooutput'] = ooutput
 
         # Calculate Forward Propagation Cost
@@ -627,19 +632,42 @@ class C_Sub_TrainNetwork(C_BPNetwork):
         elif mode == 'P': # Prediction Mode
             return network['Ooutput']
 
-    def _cal_layer_output(self, theta_set, input_set):
+    def _cal_layer_output(self, network, theta_set, input_set, layer):
         '''
         This function is to calculate the nodes output of each layer.
         :param theta_set: Is a np.array of the parameters of a layer
         :param layer_input: Is a np.array of the inputs for a layer
         :return: output value
         '''
-        output = self._cal_activation(np.dot(input_set, theta_set))
+        z = np.dot(input_set, theta_set)
+
+        if layer == 'o':
+            z += np.repeat(network['Obias'], z.shape[0], axis=0)
+            output = self._cal_activation_sig(z)
+        elif layer == 'h1':
+            z += np.repeat(network['H1bias'], z.shape[0], axis=0)
+            output = self._cal_activation_sig(z)
+        else:
+            z += np.repeat(network['H2bias'], z.shape[0], axis=0)
+            output = self._cal_activation_sig(z)
+
         return output
 
-    def _cal_activation(self, in_value):
+    def _cal_activation_sig(self, in_value):
+        activated_value = 1.0 / (1.0 + np.exp(-1 * in_value))
+        #activated_value = 0.5 * (1 + np.tanh(0.5 * in_value))
+        return activated_value
+
+    def _cal_activation_tanh(self, in_value):
         # activated_value = 1.0 / (1.0 + np.exp(in_value))
-        activated_value = 0.5 * (1 + np.tanh(0.5 * in_value))
+        val = np.exp(in_value)
+        activated_value = (val - val) / (val + val)
+        return activated_value
+
+    def _cal_activation_Relu(self, in_value):
+        # activated_value = 1.0 / (1.0 + np.exp(in_value))
+        # print in_value
+        activated_value = np.maximum(0.001, in_value)
         return activated_value
 
     def _cal_cost_function(self, ooutput, mode, network):
@@ -654,13 +682,13 @@ class C_Sub_TrainNetwork(C_BPNetwork):
             labels = np.array(self.TrainingLabels)
             count = labels.shape[0]
             # Individal Cost
-            # individal_costs = np.dot(labels, np.transpose(np.log(ooutput))) + np.dot((1 - labels),
-            #                                                                         np.transpose(
-            #                                                                            np.log(1.0 - ooutput)))
-            individal_costs = np.power((labels - ooutput), 2)
+            individal_costs = np.dot(labels, np.transpose(np.log(ooutput))) + np.dot((1 - labels),
+                                                                                     np.transpose(
+                                                                                         np.log(1.0 - ooutput)))
+            #individal_costs = np.power((labels - ooutput), 2)
             # Total Cost Calculation
-            total_cost = np.sum(individal_costs) / 2
-
+            total_cost = np.sum(individal_costs) / count * (-1)
+            #total_cost = np.sum(individal_costs) / 2
             '''
             # Regularization term calculation
             regularization_term = 0
@@ -691,8 +719,8 @@ class C_Sub_TrainNetwork(C_BPNetwork):
             # Froward Calculation
             sample = np.array(self.TrainingSamples[idx])
             label = np.array(self.TrainingLabels[idx])
-            h1ac = self._cal_activation((np.dot(h1theta, sample) + network['H1bias']))
-            oac = self._cal_activation((np.dot(h1ac, np.transpose(otheta)) + network['Obias']))
+            h1ac = self._cal_activation_sig((np.dot(h1theta, sample) + network['H1bias']))
+            oac = self._cal_activation_sig((np.dot(h1ac, np.transpose(otheta)) + network['Obias']))
             cost += np.sum(np.power((label - oac), 2)) / 2
         return cost
 
@@ -879,12 +907,12 @@ class C_Sub_NetworkPrediction(C_BPNetwork):
 
 def main():
     network = C_Sub_BuildUpNetwork()
-    network.build_network_main(layers=3, inode=20, h1node=10, h2node=0, onode=5, MRound=300, regular_term=1, mu=0.01,
+    network.build_network_main(layers=3, inode=20, h1node=10, h2node=0, onode=5, MRound=300, regular_term=1, mu=0.0001,
                                momentum=False, alpha=0.1, epslon=0.2)
     # '''
     # network.build_network_main(layers=3, inode=5, h1node=3, h2node=0, onode=2, MRound=2,regular_term=1, mu=0.1,
     #                          momentum=True, alpha=0.5, epslon=0.9)
-    network._load_model(network.network)
+    #network._load_model(network.network)
     train = C_Sub_TrainNetwork()
     trained_network = train.Train_Main(network.network, training_source='002310', CV_source='002310', mode='B')
     # trained_network = train.Train_Main(network.network, training_source='002310', CV_source='002310')
